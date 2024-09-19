@@ -96,7 +96,11 @@ nohup snakemake -p -j 12 --tibanna --use-conda \
         reference=AH3M.concat.v2.genome.fasta \
         outbase=quants/AH3M_genome_salmon.v2 > logs/AH3M_genome_salmon91924.log 2>&1 &
 
-
+##########################
+#Pull cds outputs to local drive
+##########################
+#aws s3 cp s3://salk-tm-dev/cannabis/flcDNA/quants/AH3M_cds_salmon.v2/quant.tsv .
+#then rename to quant.cds.tsv and visualize it
 ##########################
 #Plot PCA Z-score normalization
 ##########################
@@ -381,16 +385,141 @@ plt.savefig("boxplot_male_female_leaf_flower_zscore_bold.pdf", format='pdf', bbo
 # Show the plot
 plt.show()
 
-#Line Plot for Timepoint Comparisons
+#Line Plot for Timepoint Comparisons -later
 # Line plot for time comparison
 
-#Additional Analysis
+#Additional Analysis-later
 #comparisons between groups (e.g., male vs. female, leaf vs. flower) using an ANOVA or t-test
 
 
 
+##########################
+#Pull genome outputs to local drive =not interesting
+##########################
+#aws s3 cp s3://salk-tm-dev/cannabis/flcDNA/quants/AH3M_genome_salmon.v2/quant.tsv .
+#aws s3 cp s3://salk-tm-dev/cannabis/flcDNA/quants/AH3M_cds_salmon.v2/pca_plots.html .
+s3://salk-tm-dev/cannabis/flcDNA/quants/AH3M_genome_salmon.v2/lib_stats.tsv
+#then rename to quant.genome.tsv and visualize it
 
+###################################################################################################################
+#(base) jkitony@jkitony:/mnt/c/Cannabis/AH3M$
+#MCSCAN
+###################################################################################################################
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.cds.fasta.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.cds.fasta.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.gff3.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.gff3.gz .
 
+#Convert the GFF to BED file and rename them.
+$ python -m jcvi.formats.gff bed --type=mRNA --key=ID AH3Ma.v2.gff3.gz -o Female.bed
+$ python -m jcvi.formats.gff bed --type=mRNA --key=ID AH3Mb.v2.gff3.gz -o Male.bed
+
+#reformat theFASTA files as well
+$ python -m jcvi.formats.fasta format AH3Ma.v2.cds.fasta.gz Female.cds
+$ python -m jcvi.formats.fasta format AH3Mb.v2.cds.fasta.gz Male.cds
+
+#Do comparison
+$ python -m jcvi.compara.catalog ortholog Female Male --no_strip_names #--cscore=.99
+
+#Pairwise synteny
+$ python -m jcvi.graphics.dotplot Female.Male.anchors
+
+#Syntenic depth
+$ python -m jcvi.compara.synteny depth --histogram Female.Male.anchors
+
+############################################################################################################
+#Found 7415 genes highly expressed in males (chrY).
+
+#Macrosynteny for 1:1
+#Total number of 1:1 orthologous gene pairs on chrX and chrY: 1608
+#Number of 'beard genes' (differentially expressed in males): 125
+############################################################################################################
+#prepare seids and layout files
+#prepare .simple
+$ python -m jcvi.compara.synteny screen --minspan=1 --simple Female.Male.anchors Female.Male.anchors.new 
+
+#plot --add g* for interesting stuff -use script for number of occurance
+#$ python -m jcvi.graphics.karyotype seqids layout -o Female.Male.csat.pdf #raw
+
+#######################################################
+#DEG with threshold above 5 beyween X and Y
+#######################################################
+import pandas as pd
+
+# Step 1: Load the synteny anchor file with three columns: chrX_gene, chrY_gene, score
+anchors_file = "Female.Male.anchors.new"
+synteny_pairs = pd.read_csv(anchors_file, sep="\t", header=None, names=["chrX_gene", "chrY_gene", "score"])
+
+# Step 2: Extract chromosome information from gene IDs by splitting on '.'
+# Assuming the gene ID format: 'AH3Ma.v2.AH3Ma.chrX.gXXXXXX.t1'
+synteny_pairs['chrX_chr'] = synteny_pairs['chrX_gene'].str.split('.').str[3]
+synteny_pairs['chrY_chr'] = synteny_pairs['chrY_gene'].str.split('.').str[3]
+
+# Debug: Check unique chromosome identifiers extracted
+print("Unique chrX_chr values:")
+print(synteny_pairs['chrX_chr'].unique())
+print("\nUnique chrY_chr values:")
+print(synteny_pairs['chrY_chr'].unique())
+
+# Step 3: Filter strictly for chrX and chrY pairs
+synteny_pairs_filtered = synteny_pairs[
+    (synteny_pairs['chrX_chr'] == 'chrX') & (synteny_pairs['chrY_chr'] == 'chrY')
+]
+
+print(f"\nFiltered gene pairs (chrX vs chrY): {len(synteny_pairs_filtered)}")  # Expect around 1601
+
+# Step 4: Load the expression data (TPM) for chrX and chrY
+expression_file = "quant.cds.tsv"
+expression_data = pd.read_csv(expression_file, sep="\t")
+
+# Step 5: Extract relevant expression data for chrX and chrY genes
+expression_chrX = expression_data[expression_data["Name"].str.contains("chrX")]
+expression_chrY = expression_data[expression_data["Name"].str.contains("chrY")]
+
+print(f"\nchrX genes in expression data: {expression_chrX['Name'].nunique()}")
+print(f"chrY genes in expression data: {expression_chrY['Name'].nunique()}")
+
+# Step 6: Keep only the "Name" and "TPM" columns, clean gene names, and drop duplicates
+expression_chrX = expression_chrX[["Name", "TPM"]].copy()
+expression_chrX['chrX_gene'] = expression_chrX['Name'].str.strip()
+expression_chrX = expression_chrX[['chrX_gene', 'TPM']].drop_duplicates(subset="chrX_gene")
+
+expression_chrY = expression_chrY[["Name", "TPM"]].copy()
+expression_chrY['chrY_gene'] = expression_chrY['Name'].str.strip()
+expression_chrY = expression_chrY[['chrY_gene', 'TPM']].drop_duplicates(subset="chrY_gene")
+
+# Verify no duplicates remain
+if expression_chrX['chrX_gene'].duplicated().sum() > 0:
+    print("Warning: Duplicated chrX genes found in expression data.")
+if expression_chrY['chrY_gene'].duplicated().sum() > 0:
+    print("Warning: Duplicated chrY genes found in expression data.")
+
+print(f"\nUnique chrX genes after cleaning: {expression_chrX['chrX_gene'].nunique()}")
+print(f"Unique chrY genes after cleaning: {expression_chrY['chrY_gene'].nunique()}")
+
+# Step 7: Rename columns for easier merging
+expression_chrX.columns = ["chrX_gene", "TPM_chrX"]
+expression_chrY.columns = ["chrY_gene", "TPM_chrY"]
+
+# Step 8: Merge the synteny pairs with expression data
+merged = pd.merge(synteny_pairs_filtered, expression_chrX, on="chrX_gene", how="inner")
+print(f"\nAfter merging with chrX expression data: {len(merged)}")
+merged = pd.merge(merged, expression_chrY, on="chrY_gene", how="inner")
+print(f"After merging with chrY expression data: {len(merged)}")
+
+# Step 9: Perform differential expression analysis by calculating the TPM difference
+merged["TPM_diff"] = merged["TPM_chrY"] - merged["TPM_chrX"]
+
+# Step 10: Apply a threshold to identify "beard genes" (genes with higher expression in chrY)
+tpm_threshold = 5  # Set the TPM difference threshold to classify beard genes
+beard_genes = merged[merged["TPM_diff"] > tpm_threshold]
+
+# Step 11: Save the list of "beard genes" to a file
+beard_genes.to_csv("beard_genes_chrY.csv", index=False)
+
+# Step 12: Optional - Print the number of orthologs and "beard genes"
+print(f"\nTotal number of 1:1 orthologous gene pairs on chrX and chrY: {len(merged)}")
+print(f"Number of 'beard genes' (differentially expressed in males): {len(beard_genes)}")
 
 
 
