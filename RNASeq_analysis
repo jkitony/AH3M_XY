@@ -100,14 +100,75 @@ nohup snakemake -p -j 12 --tibanna --use-conda \
 
 #Plot 
 
+##########################
+#chr Y genes:Extract Gene Information for Chromosome Y
+#Have a list of genes specifically located on chromosome Y
+#Filter 
+#TPM values are already normalized for sequencing depth, scale across samples if needed
+########################
+#Not really info about Y genes
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.gff3.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.gff3.gz .
+##########
+#But Organize the Data
+import pandas as pd
+
+# Load the quant.tsv file
+quant_data = pd.read_csv('quant.tsv', sep='\t')
+
+# Load the list of chromosome Y genes
+chromosome_y_genes = pd.read_csv('chromosome_y_genes.txt', header=None)
+
+# Filter quantification data for genes on chromosome Y
+chrom_y_expression = quant_data[quant_data['Name'].isin(chromosome_y_genes[0])]
+
+# Reshape the data
+chrom_y_expression = chrom_y_expression.pivot_table(index='Name', columns='Sample', values='TPM')
+
+# Save the reshaped data
+chrom_y_expression.to_csv('chromosome_y_expression_reshaped.tsv', sep='\t')
+
+#Heatmap of TPM Values
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Plot heatmap of TPM values
+plt.figure(figsize=(10, 8))
+sns.heatmap(chrom_y_expression, cmap='viridis', annot=True)
+plt.title('Heatmap of Chromosome Y Gene Expression (TPM)')
+plt.xlabel('Samples')
+plt.ylabel('Gene Name')
+plt.show()
+
+#Boxplots Comparing Male vs Female and Leaf vs Flower
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Melt the data for easier plotting with seaborn
+chrom_y_expression_melted = pd.melt(chrom_y_expression.reset_index(), id_vars='Name', var_name='Sample', value_name='TPM')
+
+# Split the sample into different factors for visualization
+chrom_y_expression_melted['Time'] = chrom_y_expression_melted['Sample'].apply(lambda x: '8am' if '8am' in x else '8pm')
+chrom_y_expression_melted['Gender'] = chrom_y_expression_melted['Sample'].apply(lambda x: 'Male' if 'male' in x else 'Female')
+chrom_y_expression_melted['Tissue'] = chrom_y_expression_melted['Sample'].apply(lambda x: 'Leaf' if 'leaf' in x else 'Flower')
+
+# Plot the data
+plt.figure(figsize=(12, 6))
+sns.boxplot(x='Tissue', y='TPM', hue='Gender', data=chrom_y_expression_melted)
+plt.title('Chromosome Y Gene Expression by Tissue and Gender')
+plt.show()
+
+#Line Plot for Timepoint Comparisons
+# Line plot for time comparison
+plt.figure(figsize=(10, 6))
+sns.lineplot(x='Time', y='TPM', hue='Tissue', style='Gender', data=chrom_y_expression_melted, markers=True, dashes=False)
+plt.title('Chromosome Y Gene Expression Over Time')
+plt.show()
+
+#Additional Analysis
+#comparisons between groups (e.g., male vs. female, leaf vs. flower) using an ANOVA or t-test
 
 
-#Elements and cycling analysis
-
-
-
-
-#Plot
 
 
 
