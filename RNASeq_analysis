@@ -17,8 +17,8 @@ Transcripts expressions were calculated via https://gitlab.com/salk-tm/snake_sal
 AH3M; leaf and flower for four plants (2male and 2female) collecte at (8AM and 8pm)
 
 #Names haplotypes
-AH3Ma=
-AH3Mb=
+AH3Ma=X
+AH3Mb=Y
 
 #Other info. temp seabiscuit:#/data1/jkitony/Cannabis/AH3M_XY 
 #Reference file were created as follows
@@ -97,73 +97,292 @@ nohup snakemake -p -j 12 --tibanna --use-conda \
         outbase=quants/AH3M_genome_salmon.v2 > logs/AH3M_genome_salmon91924.log 2>&1 &
 
 
-
-#Plot 
-
 ##########################
-#chr Y genes:Extract Gene Information for Chromosome Y
-#Have a list of genes specifically located on chromosome Y
-#Filter 
-#TPM values are already normalized for sequencing depth, scale across samples if needed
-########################
-#Not really info about Y genes
-aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.gff3.gz .
-aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.gff3.gz .
-##########
-#But Organize the Data
+#Plot PCA Z-score normalization
+##########################
 import pandas as pd
+from sklearn.decomposition import PCA
+from scipy.stats import zscore
+import plotly.express as px
+import plotly.io as pio
 
-# Load the quant.tsv file
-quant_data = pd.read_csv('quant.tsv', sep='\t')
+def draw_scatter(df, output_png, output_pdf, output_html):
+    # Create the PCA scatter plot
+    fig = px.scatter(
+        df,
+        x="dim1",
+        y="dim2",
+        color="labels",
+        labels={"labels": "Sample"},
+        title="PCA of TPM Values",
+    )
 
-# Load the list of chromosome Y genes
-chromosome_y_genes = pd.read_csv('chromosome_y_genes.txt', header=None)
+    # Make the axis titles and plot title bold
+    fig.update_layout(
+        title={'text': "PCA of TPM Values", 'x':0.5, 'xanchor': 'center', 'font': {'size': 20, 'family': 'Arial', 'color': 'black', 'weight': 'bold'}},
+        xaxis_title="PC1",
+        yaxis_title="PC2",
+        font=dict(family="Arial", size=12, color="black", weight="bold"),
+        legend_title=dict(font=dict(weight="bold"))
+    )
 
-# Filter quantification data for genes on chromosome Y
-chrom_y_expression = quant_data[quant_data['Name'].isin(chromosome_y_genes[0])]
+    # Save the plot as PNG, PDF, and HTML
+    fig.write_image(output_png)
+    fig.write_image(output_pdf)
+    fig.write_html(output_html)
+    
+    # Show the plot in the browser
+    fig.show()
 
-# Reshape the data
-chrom_y_expression = chrom_y_expression.pivot_table(index='Name', columns='Sample', values='TPM')
+def stdnorm(df):
+    """Applies z-score to the rows (genes) of df"""
+    ret = df.transpose().apply(zscore).transpose()
+    ret = ret.dropna()
+    return ret
 
-# Save the reshaped data
-chrom_y_expression.to_csv('chromosome_y_expression_reshaped.tsv', sep='\t')
+def dim_reduce(df, reducer=PCA):
+    reducer = reducer(n_components=2)
+    reduced = pd.DataFrame(
+        reducer.fit_transform(df.transpose()),
+        columns=['dim1', 'dim2'],
+    )
+    reduced["labels"] = df.columns
+    return reduced
 
-#Heatmap of TPM Values
+def main(counts, output_png, output_pdf, output_html):
+    # Load the dataset (update the file path)
+    df = pd.read_csv(counts, sep="\t")
+
+    # Mapping sample IDs to human-readable names (like the heatmap)
+    name_mapping = {
+        "Csat_L005-467_AceHigh_Plant_A_8am_male_leaf.long": "Plant_A_8am_male_leaf",
+        "Csat_L005-469_AceHigh_Plant_B_8am_male_leaf.long": "Plant_B_8am_male_leaf",
+        "Csat_L005-475_AceHigh_Plant_A_8pm_male_leaf.long": "Plant_A_8pm_male_leaf",
+        "Csat_L005-477_AceHigh_Plant_B_8pm_male_leaf.long": "Plant_B_8pm_male_leaf",
+        "Csat_L005-471_AceHigh_Plant_C_8am_female_leaf.long": "Plant_C_8am_female_leaf",
+        "Csat_L005-473_AceHigh_Plant_D_8am_female_leaf.long": "Plant_D_8am_female_leaf",
+        "Csat_L005-479_AceHigh_Plant_C_8pm_female_leaf.long": "Plant_C_8pm_female_leaf",
+        "Csat_L005-481_AceHigh_Plant_D_8pm_female_leaf.long": "Plant_D_8pm_female_leaf",
+        "Csat_L005-468_AceHigh_Plant_A_8am_male_flower.long": "Plant_A_8am_male_flower",
+        "Csat_L005-470_AceHigh_Plant_B_8am_male_flower.long": "Plant_B_8am_male_flower",
+        "Csat_L005-476_AceHigh_Plant_A_8pm_male_flower.long": "Plant_A_8pm_male_flower",
+        "Csat_L005-478_AceHigh_Plant_B_8pm_male_flower.long": "Plant_B_8pm_male_flower",
+        "Csat_L005-472_AceHigh_Plant_C_8am_female_flower.long": "Plant_C_8am_female_flower",
+        "Csat_L005-474_AceHigh_Plant_D_8am_female_flower.long": "Plant_D_8am_female_flower",
+        "Csat_L005-480_AceHigh_Plant_C_8pm_female_flower.long": "Plant_C_8pm_female_flower",
+        "Csat_L005-482_AceHigh_Plant_D_8pm_female_flower.long": "Plant_D_8pm_female_flower"
+    }
+
+    # Pivot to get the TPM counts in a wide format with genes as rows and samples as columns
+    tpm = df.set_index(["Name", "Sample"]).TPM.unstack()
+
+    # Normalize the data with z-score
+    tpm = stdnorm(tpm)
+
+    # Perform PCA dimensionality reduction
+    tpm_2dim = dim_reduce(tpm)
+
+    # Apply the name mapping to the labels in the PCA plot
+    tpm_2dim["labels"] = tpm_2dim["labels"].map(name_mapping)
+
+    # Generate and save the PCA scatter plot
+    draw_scatter(tpm_2dim, output_png, output_pdf, output_html)
+
+# Example usage:
+counts_file_path = "quant.cds.tsv"  # Update this with your actual file path
+output_png = "PCA_plot.png"
+output_pdf = "PCA_plot.pdf"
+output_html = "PCA_plot.html"
+
+main(counts_file_path, output_png, output_pdf, output_html)
+##########################
+#Plot heatmap Z-score normalization
+##########################
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import zscore
 
-# Plot heatmap of TPM values
-plt.figure(figsize=(10, 8))
-sns.heatmap(chrom_y_expression, cmap='viridis', annot=True)
-plt.title('Heatmap of Chromosome Y Gene Expression (TPM)')
-plt.xlabel('Samples')
-plt.ylabel('Gene Name')
+# Load the quant.cds.tsv file (update this with your file path)
+file_path = "quant.cds.tsv"  # Replace with the actual file path
+df = pd.read_csv(file_path, sep="\t")
+
+# Define the desired sample order
+sample_order = [
+    "Csat_L005-467_AceHigh_Plant_A_8am_male_leaf.long", "Csat_L005-469_AceHigh_Plant_B_8am_male_leaf.long",
+    "Csat_L005-475_AceHigh_Plant_A_8pm_male_leaf.long", "Csat_L005-477_AceHigh_Plant_B_8pm_male_leaf.long",
+    "Csat_L005-471_AceHigh_Plant_C_8am_female_leaf.long", "Csat_L005-473_AceHigh_Plant_D_8am_female_leaf.long",
+    "Csat_L005-479_AceHigh_Plant_C_8pm_female_leaf.long", "Csat_L005-481_AceHigh_Plant_D_8pm_female_leaf.long",
+    "Csat_L005-468_AceHigh_Plant_A_8am_male_flower.long", "Csat_L005-470_AceHigh_Plant_B_8am_male_flower.long",
+    "Csat_L005-476_AceHigh_Plant_A_8pm_male_flower.long", "Csat_L005-478_AceHigh_Plant_B_8pm_male_flower.long",
+    "Csat_L005-472_AceHigh_Plant_C_8am_female_flower.long", "Csat_L005-474_AceHigh_Plant_D_8am_female_flower.long",
+    "Csat_L005-480_AceHigh_Plant_C_8pm_female_flower.long", "Csat_L005-482_AceHigh_Plant_D_8pm_female_flower.long"
+]
+
+# Corresponding display names
+name_mapping = {
+    "Csat_L005-467_AceHigh_Plant_A_8am_male_leaf.long": "Plant_A_8am_male_leaf",
+    "Csat_L005-469_AceHigh_Plant_B_8am_male_leaf.long": "Plant_B_8am_male_leaf",
+    "Csat_L005-475_AceHigh_Plant_A_8pm_male_leaf.long": "Plant_A_8pm_male_leaf",
+    "Csat_L005-477_AceHigh_Plant_B_8pm_male_leaf.long": "Plant_B_8pm_male_leaf",
+    "Csat_L005-471_AceHigh_Plant_C_8am_female_leaf.long": "Plant_C_8am_female_leaf",
+    "Csat_L005-473_AceHigh_Plant_D_8am_female_leaf.long": "Plant_D_8am_female_leaf",
+    "Csat_L005-479_AceHigh_Plant_C_8pm_female_leaf.long": "Plant_C_8pm_female_leaf",
+    "Csat_L005-481_AceHigh_Plant_D_8pm_female_leaf.long": "Plant_D_8pm_female_leaf",
+    "Csat_L005-468_AceHigh_Plant_A_8am_male_flower.long": "Plant_A_8am_male_flower",
+    "Csat_L005-470_AceHigh_Plant_B_8am_male_flower.long": "Plant_B_8am_male_flower",
+    "Csat_L005-476_AceHigh_Plant_A_8pm_male_flower.long": "Plant_A_8pm_male_flower",
+    "Csat_L005-478_AceHigh_Plant_B_8pm_male_flower.long": "Plant_B_8pm_male_flower",
+    "Csat_L005-472_AceHigh_Plant_C_8am_female_flower.long": "Plant_C_8am_female_flower",
+    "Csat_L005-474_AceHigh_Plant_D_8am_female_flower.long": "Plant_D_8am_female_flower",
+    "Csat_L005-480_AceHigh_Plant_C_8pm_female_flower.long": "Plant_C_8pm_female_flower",
+    "Csat_L005-482_AceHigh_Plant_D_8pm_female_flower.long": "Plant_D_8pm_female_flower"
+}
+
+# Filter for relevant chromosomes and assign Male/Female based on the name prefixes (AH3Mb for Male, AH3Ma for Female)
+chr_focus = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chrX', 'chrY']
+
+# Extract the chromosome information from the "Name" column
+df['Chromosome'] = df['Name'].str.extract(r'(chr\d+|chrX|chrY)')
+
+# Create a new column 'Chromosome_Group' to differentiate between Male (AH3Mb) and Female (AH3Ma)
+df['Chromosome_Group'] = df.apply(
+    lambda row: f"{row['Chromosome']}_AH3Mb" if 'AH3Mb' in row['Name'] else f"{row['Chromosome']}_AH3Ma", axis=1
+)
+
+# Filter the dataframe for the relevant chromosomes
+df_filtered = df[df['Chromosome'].isin(chr_focus)]
+
+# Reshape the dataframe to have genes (Name) as rows and samples (Sample) as columns with TPM values
+df_pivot = df_filtered.pivot_table(index='Sample', columns='Chromosome_Group', values='TPM')
+
+# Reorder the rows based on the specified sample order
+df_pivot = df_pivot.reindex(sample_order)
+
+# Rename the index for better display using the name mapping
+df_pivot.index = df_pivot.index.map(name_mapping)
+
+# Apply Z-score normalization
+df_normalized = df_pivot.transpose().apply(zscore).transpose()
+
+# Plotting heatmap of normalized TPM values with separated chromosomes for Male (AH3Mb) and Female (AH3Ma)
+# Define file paths for saving the plots
+png_file_path = "heatmap_tpm_values_zscore.png"
+pdf_file_path = "heatmap_tpm_values_zscore.pdf"
+
+# Plotting and saving heatmap of Z-score normalized TPM values
+plt.figure(figsize=(14, 10))
+
+# Creating the heatmap
+ax = sns.heatmap(df_normalized, cmap="viridis", xticklabels=True, yticklabels=True)
+
+# Set title with bold font
+plt.title("Heatmap of Z-score Normalized TPM values for Genes across Separated Chromosomes (Male/Female)", fontweight='bold')
+
+# Set x-axis and y-axis labels with bold font
+plt.xlabel("Chromosome (Separated by Male/Female)", fontweight='bold')
+plt.ylabel("Sample (Ordered by Tissue and Gender)", fontweight='bold')
+
+# Rotate the x-axis labels for better readability
+plt.xticks(rotation=90, fontweight='bold')
+plt.yticks(fontweight='bold')
+
+# Save the plot as PNG and PDF files
+plt.savefig(png_file_path, format='png', bbox_inches='tight')
+plt.savefig(pdf_file_path, format='pdf', bbox_inches='tight')
+
+# Show the plot
 plt.show()
 
+
+##########################
+##########################IDEAS
+##########################
+
 #Boxplots Comparing Male vs Female and Leaf vs Flower
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import zscore
 
-# Melt the data for easier plotting with seaborn
-chrom_y_expression_melted = pd.melt(chrom_y_expression.reset_index(), id_vars='Name', var_name='Sample', value_name='TPM')
+# Load the quant.cds.tsv file (update this with your file path)
+file_path = "quant.cds.tsv"  # Replace with the actual file path
+df = pd.read_csv(file_path, sep="\t")
 
-# Split the sample into different factors for visualization
-chrom_y_expression_melted['Time'] = chrom_y_expression_melted['Sample'].apply(lambda x: '8am' if '8am' in x else '8pm')
-chrom_y_expression_melted['Gender'] = chrom_y_expression_melted['Sample'].apply(lambda x: 'Male' if 'male' in x else 'Female')
-chrom_y_expression_melted['Tissue'] = chrom_y_expression_melted['Sample'].apply(lambda x: 'Leaf' if 'leaf' in x else 'Flower')
+# Corresponding display names
+name_mapping = {
+    "Csat_L005-467_AceHigh_Plant_A_8am_male_leaf.long": "Plant_A_8am_male_leaf",
+    "Csat_L005-469_AceHigh_Plant_B_8am_male_leaf.long": "Plant_B_8am_male_leaf",
+    "Csat_L005-475_AceHigh_Plant_A_8pm_male_leaf.long": "Plant_A_8pm_male_leaf",
+    "Csat_L005-477_AceHigh_Plant_B_8pm_male_leaf.long": "Plant_B_8pm_male_leaf",
+    "Csat_L005-471_AceHigh_Plant_C_8am_female_leaf.long": "Plant_C_8am_female_leaf",
+    "Csat_L005-473_AceHigh_Plant_D_8am_female_leaf.long": "Plant_D_8am_female_leaf",
+    "Csat_L005-479_AceHigh_Plant_C_8pm_female_leaf.long": "Plant_C_8pm_female_leaf",
+    "Csat_L005-481_AceHigh_Plant_D_8pm_female_leaf.long": "Plant_D_8pm_female_leaf",
+    "Csat_L005-468_AceHigh_Plant_A_8am_male_flower.long": "Plant_A_8am_male_flower",
+    "Csat_L005-470_AceHigh_Plant_B_8am_male_flower.long": "Plant_B_8am_male_flower",
+    "Csat_L005-476_AceHigh_Plant_A_8pm_male_flower.long": "Plant_A_8pm_male_flower",
+    "Csat_L005-478_AceHigh_Plant_B_8pm_male_flower.long": "Plant_B_8pm_male_flower",
+    "Csat_L005-472_AceHigh_Plant_C_8am_female_flower.long": "Plant_C_8am_female_flower",
+    "Csat_L005-474_AceHigh_Plant_D_8am_female_flower.long": "Plant_D_8am_female_flower",
+    "Csat_L005-480_AceHigh_Plant_C_8pm_female_flower.long": "Plant_C_8pm_female_flower",
+    "Csat_L005-482_AceHigh_Plant_D_8pm_female_flower.long": "Plant_D_8pm_female_flower"
+}
 
-# Plot the data
-plt.figure(figsize=(12, 6))
-sns.boxplot(x='Tissue', y='TPM', hue='Gender', data=chrom_y_expression_melted)
-plt.title('Chromosome Y Gene Expression by Tissue and Gender')
+# Filter for chrX and chrY (Female and Male)
+df['Chromosome'] = df['Name'].str.extract(r'(chr\d+|chrX|chrY)')
+
+# Apply a condition that checks if 'Chromosome' is not null before applying the lambda function
+df['Sex'] = df.apply(lambda row: 'Male' if pd.notna(row['Chromosome']) and 'chrY' in row['Chromosome']
+                     else 'Female' if pd.notna(row['Chromosome']) and 'chrX' in row['Chromosome']
+                     else None, axis=1)
+
+# Create a new column to indicate tissue type (Leaf or Flower)
+df['Tissue'] = df['Sample'].apply(lambda x: 'Leaf' if 'leaf' in x else 'Flower' if 'flower' in x else None)
+
+# Filter for only chrX and chrY
+df_filtered = df[df['Chromosome'].isin(['chrX', 'chrY'])]
+
+# Pivot the dataframe to have samples as columns and TPM as values
+df_pivot = df_filtered.pivot_table(index='Name', columns='Sample', values='TPM')
+
+# Apply Z-score normalization across the samples for each gene (row)
+df_normalized = df_pivot.apply(zscore, axis=1)
+
+# Convert the normalized dataframe back to long format for plotting
+df_long = df_normalized.reset_index().melt(id_vars='Name', var_name='Sample', value_name='Z-score')
+
+# Add sex and tissue information back to the long format dataframe
+df_long = df_long.merge(df[['Name', 'Sex', 'Tissue']], on='Name')
+
+# Add display names to the samples using the name_mapping
+df_long['Sample'] = df_long['Sample'].map(name_mapping)
+
+# Create a combined label for Sex and Tissue for the boxplots
+df_long['Group'] = df_long['Sex'] + ' (' + df_long['Tissue'] + ')'
+
+# Plotting the boxplot comparing Male and Female (Leaf and Flower) based on Z-score normalized data
+plt.figure(figsize=(10, 6))
+sns.boxplot(x='Group', y='Z-score', data=df_long, palette='Set2')
+
+# Add titles and labels with bold font
+plt.title('Comparison of Z-score Normalized TPM values: Male and Female (Leaf and Flower)', fontweight='bold', fontsize=16)
+plt.xlabel('Group', fontweight='bold', fontsize=14)
+plt.ylabel('Z-score', fontweight='bold', fontsize=14)
+
+# Make all tick labels bold
+plt.xticks(fontweight='bold', fontsize=12)
+plt.yticks(fontweight='bold', fontsize=12)
+
+# Save the plot
+plt.savefig("boxplot_male_female_leaf_flower_zscore_bold.png", format='png', bbox_inches='tight')
+plt.savefig("boxplot_male_female_leaf_flower_zscore_bold.pdf", format='pdf', bbox_inches='tight')
+
+# Show the plot
 plt.show()
 
 #Line Plot for Timepoint Comparisons
 # Line plot for time comparison
-plt.figure(figsize=(10, 6))
-sns.lineplot(x='Time', y='TPM', hue='Tissue', style='Gender', data=chrom_y_expression_melted, markers=True, dashes=False)
-plt.title('Chromosome Y Gene Expression Over Time')
-plt.show()
 
 #Additional Analysis
 #comparisons between groups (e.g., male vs. female, leaf vs. flower) using an ANOVA or t-test
