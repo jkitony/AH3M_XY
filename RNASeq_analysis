@@ -3,7 +3,7 @@
 #Csat RNASeq 
 Transcripts expressions were calculated via https://gitlab.com/salk-tm/snake_salmon for AH3M. Samples details below.
 
-#Files in the directory after run
+#Files in the directory after run: s3://salk-tm-dev/cannabis/flcDNA/quants//AH3M_cds_salmon.v2 and /AH3M_genome_salmon.v2
 1.quant file - TPM raw
 2.samples PCA
 3.Stats
@@ -52,24 +52,49 @@ aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged
 aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.genome.fasta.gz .
 cat AH3Ma.v2.genome.fasta.gz AH3Mb.v2.genome.fasta.gz > AH3M.concat.v2.genome.fasta.gz
 
-#download the timecource of four samples (2Y and  2X) flcDNA Seq
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.cds.fasta.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.cds.fasta.gz .
+cat AH3Ma.v2.cds.fasta.gz AH3Mb.v2.cds.fasta.gz > AH3Mb.concat.v2.cds.fasta.gz
+
+#download the RNASeq for the four plants (2Y and 2X) flcDNA Seq
 aws s3 ls s3://salk-tm-raw/reads/AceHigh_male_experiment/ --recursive | awk '/\.pass_cDNA.*\.fastq\.gz$/ {print $4}' | xargs -I{} aws s3 cp s3://salk-tm-raw/{} .
 
 #upload to s3 
 aws s3 cp ./ s3://salk-tm-dev/cannabis/flcDNA/ --recursive --include "*"
 
-
-
-#Call TPM via salmon workflow
+############################
+#Install the salmon workflow
+#/data1/jkitony/my_workflows/
+#git clone https://gitlab.com/salk-tm/snake_salmon.git
+#cd snake_salmon
+#mkdir logs
+#conda activate snake
+#Create json file for workflow to use
+git status
+git add configs/csat_AH3M.json
+git commit -m "AH3M config"
+git push
+############################
+#
+#Call TPM via salmon workflow -map to cds
 nohup snakemake -p -j 12 --tibanna --use-conda \
-    --tibanna-config root_ebs_size=32 log_bucket=salk-tm-logs run_name=FCS1_salmon\
+    --tibanna-config root_ebs_size=32 log_bucket=salk-tm-logs run_name=AH3M_cds_salmon.v1\
+    --default-remote-prefix salk-tm-dev/cannabis/flcDNA/ \
+    --default-resources mem_mb=500000 disk_mb=5000000 \
+    --configfile configs/csat_AH3M.json \
+    --config \
+        reference=AH3Mb.concat.v2.cds.fasta \
+        outbase=quants/AH3M_cds_salmon.v2 > logs/AH3M_cds_salmon91924.log 2>&1 &
+
+#Call TPM via salmon workflow -map to genome
+nohup snakemake -p -j 12 --tibanna --use-conda \
+    --tibanna-config root_ebs_size=32 log_bucket=salk-tm-logs run_name=AH3M_genome_salmon.v1\
     --default-remote-prefix salk-tm-dev/cannabis/flcDNA/ \
     --default-resources mem_mb=200000 disk_mb=2000000 \
-    --configfile configs/FCS1a_b_final.json \
+    --configfile configs/csat_AH3M.json \
     --config \
-        reference=FCS1a_b.all.cds.fasta \
-        outbase=quants/FCS1_final_salmon > logs/FCS1_final_salmon312023.log 2>&1 &
-
+        reference=AH3M.concat.v2.genome.fasta \
+        outbase=quants/AH3M_genome_salmon.v2 > logs/AH3M_genome_salmon91924.log 2>&1 &
 
 
 
