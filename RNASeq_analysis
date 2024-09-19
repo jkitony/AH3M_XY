@@ -1,0 +1,91 @@
+#/data1/jkitony/Cannabis/AH3M_XY 
+#Overview
+#Csat RNASeq 
+Transcripts expressions were calculated via https://gitlab.com/salk-tm/snake_salmon for AH3M. Samples details below.
+
+#Files in the directory after run
+1.quant file - TPM raw
+2.samples PCA
+3.Stats
+4.TPM matrix - raw
+
+#Location:
+1.s3://salk-tm-dev/cannabis/flcDNA/quants/AH3M_final_salmon/
+
+#Overview of RNASeq experiment
+#Long reads
+AH3M; leaf and flower for four plants (2male and 2female) collecte at (8AM and 8pm)
+
+#Names haplotypes
+AH3Ma=
+AH3Mb=
+
+#Other info. temp seabiscuit:#/data1/jkitony/Cannabis/AH3M_XY 
+#Reference file were created as follows
+#download the two haplotypes reference and concat
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.genome.fasta.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.genome.fasta.gz .
+cat AH3Ma.v2.genome.fasta.gz AH3Mb.v2.genome.fasta.gz > AH3M.concat.v2.genome.fasta.gz
+
+#Metadata 1_sample tracking #https://docs.google.com/spreadsheets/d/1-r0PweCt4K0hQsKrc1uxjkNAZMee-PwJxkYVxPGprig/edit?gid=1311696726#gid=1311696726
+Csat_AceHigh_Plant_A.pass_cDNA.R000-793.L005-467.fastq.gz   8am male leaf plant A
+Csat_AceHigh_Plant_A.pass_cDNA.R000-793.L005-468.fastq.gz   8am male flower plant A
+Csat_AceHigh_Plant_A.pass_cDNA.R000-794.L005-475.fastq.gz   8am male leaf plant B
+Csat_AceHigh_Plant_A.pass_cDNA.R000-794.L005-476.fastq.gz   8am male flower plant B
+Csat_AceHigh_Plant_B.pass_cDNA.R000-793.L005-469.fastq.gz   8am female leaf plant C
+Csat_AceHigh_Plant_B.pass_cDNA.R000-793.L005-470.fastq.gz   8am female flower plant C
+Csat_AceHigh_Plant_B.pass_cDNA.R000-794.L005-477.fastq.gz   8am female leaf plant D
+Csat_AceHigh_Plant_B.pass_cDNA.R000-794.L005-478.fastq.gz   8am female flower plant D
+Csat_AceHigh_Plant_C.pass_cDNA.R000-793.L005-471.fastq.gz   8pm male leaf plant A
+Csat_AceHigh_Plant_C.pass_cDNA.R000-793.L005-472.fastq.gz   8pm male flower plant A
+Csat_AceHigh_Plant_C.pass_cDNA.R000-794.L005-479.fastq.gz   8pm male leaf plant B
+Csat_AceHigh_Plant_C.pass_cDNA.R000-794.L005-480.fastq.gz   8pm male flower plant B
+Csat_AceHigh_Plant_D.pass_cDNA.R000-793.L005-473.fastq.gz   8pm female leaf plant C
+Csat_AceHigh_Plant_D.pass_cDNA.R000-793.L005-474.fastq.gz   8pm female flower plant C
+Csat_AceHigh_Plant_D.pass_cDNA.R000-794.L005-481.fastq.gz   8pm female leaf plant D
+Csat_AceHigh_Plant_D.pass_cDNA.R000-794.L005-482.fastq.gz   8pm female flower plant D
+######################################################################################################################################################################
+#Actual analysis
+######################################################################################################################################################################
+#download the two haplotypes reference and concat
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.genome.fasta.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.genome.fasta.gz .
+cat AH3Ma.v2.genome.fasta.gz AH3Mb.v2.genome.fasta.gz > AH3M.concat.v2.genome.fasta.gz
+
+#download the timecource of four samples (2Y and  2X) flcDNA Seq
+aws s3 ls s3://salk-tm-raw/reads/AceHigh_male_experiment/ --recursive | awk '/\.pass_cDNA.*\.fastq\.gz$/ {print $4}' | xargs -I{} aws s3 cp s3://salk-tm-raw/{} .
+
+#upload to s3 
+aws s3 cp ./ s3://salk-tm-dev/cannabis/flcDNA/ --recursive --include "*"
+
+
+
+#Call TPM via salmon workflow
+nohup snakemake -p -j 12 --tibanna --use-conda \
+    --tibanna-config root_ebs_size=32 log_bucket=salk-tm-logs run_name=FCS1_salmon\
+    --default-remote-prefix salk-tm-dev/cannabis/flcDNA/ \
+    --default-resources mem_mb=200000 disk_mb=2000000 \
+    --configfile configs/FCS1a_b_final.json \
+    --config \
+        reference=FCS1a_b.all.cds.fasta \
+        outbase=quants/FCS1_final_salmon > logs/FCS1_final_salmon312023.log 2>&1 &
+
+
+
+
+#Plot 
+
+
+
+#Elements and cycling analysis
+
+
+
+
+#Plot
+
+
+
+
+
+
