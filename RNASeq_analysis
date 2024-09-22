@@ -442,7 +442,7 @@ $ python -m jcvi.compara.synteny screen --minspan=1 --simple Female.Male.anchors
 #$ python -m jcvi.graphics.karyotype seqids layout -o Female.Male.csat.pdf #raw
 
 #######################################################
-#DEG with threshold above 5 beyween X and Y
+#DEG with threshold above 5 between X and Y
 #######################################################
 import pandas as pd
 
@@ -520,6 +520,24 @@ beard_genes.to_csv("beard_genes_chrY.csv", index=False)
 # Step 12: Optional - Print the number of orthologs and "beard genes"
 print(f"\nTotal number of 1:1 orthologous gene pairs on chrX and chrY: {len(merged)}")
 print(f"Number of 'beard genes' (differentially expressed in males): {len(beard_genes)}")
+
+############################################################################################################
+#the beards genes
+############################################################################################################
+#Use EGGNog from helixer
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.transcript_summary.tsv.gz .
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
