@@ -1,0 +1,14 @@
+cd /mnt/c/Cannabis/AH3M/orthogroups
+conda activate orthobrowser
+mkdir proteins
+download the 8 files for sex determination
+# check that your protein ids are unique
+orthobrowser check_proteins proteins/
+# run orthofinder.
+orthofinder -M msa -f proteins
+#orthobrowser
+orthobrowser build -o proteins/OrthoFinder/Results_Oct18_1*/ -b csat_sex_orthobrowser
+
+# launch a local test server at localhost:8000
+orthobrowser run -b csat_sex_orthobrowser
+
