@@ -12,3 +12,8 @@ orthobrowser build -o proteins/OrthoFinder/Results_Oct18_1*/ -b csat_sex_orthobr
 # launch a local test server at localhost:8000
 orthobrowser run -b csat_sex_orthobrowser
 
+###############################################
+ cat Orthogroups.tsv | grep 'evm.model.AsparagusV1_01.231' > SOFF.OGs.txt
+ grep -E 'OG0000010|OG0000014|OG0000348|OG0000672|OG0011941|OG0016100|OG0016226|OG0023142|OG0023621' orthogroups.GeneCount.tsv > SOFF.OGs.v2.txt
+
+cat Orthogroups.tsv | grep 'evm.model.AsparagusV1_01.240' > TDF1.OGs.txt
