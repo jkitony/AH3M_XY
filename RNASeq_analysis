@@ -1,3 +1,26 @@
+
+
+#Lillian suggestion
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Ma.helixer/AH3Ma.v2.munged/AH3Ma.v2.cds.fasta.gz .
+aws s3 cp s3://salk-tm-dev/nolan_temp/csat_helixer/AH3Mb.helixer/AH3Mb.v2.munged/AH3Mb.v2.cds.fasta.gz .
+cat AH3Ma.v2.cds.fasta.gz AH3Mb.v2.cds.fasta.gz > AH3Mb.concat.v2.cds.fasta.gz
+
+
+#upload to s3 
+aws s3 cp ./ s3://salk-tm-dev/cannabis/flcDNA/ --recursive --include "*"
+
+
+#Call TPM via salmon workflow -map to cds
+nohup snakemake -p -j 12 --tibanna --use-conda \
+    --tibanna-config root_ebs_size=32 log_bucket=salk-tm-logs run_name=AH3M_cds_salmon.v1\
+    --default-remote-prefix salk-tm-dev/cannabis/flcDNA/ \
+    --default-resources mem_mb=500000 disk_mb=5000000 \
+    --configfile configs/csat_AH3M.json \
+    --config \
+        reference=AH3Mb.concat.v2.cds.fasta \
+        outbase=quants/AH3M_cds_salmon.v2 > logs/AH3M_cds_salmon91924.log 2>&1 &
+
+##############################################################
 #/data1/jkitony/Cannabis/AH3M_XY 
 #Overview
 #Csat RNASeq 
