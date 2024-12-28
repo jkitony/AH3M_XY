@@ -24,6 +24,19 @@ nohup snakemake -p -j 12 --tibanna --use-conda \
         reference=AH3M.concat.primary_high_confidence.cds.fasta \
         outbase=quants/AH3M_primary_high_confidence_cds_salmon.v1 > logs/AH3M_cds_salmon91924.log 2>&1 &
 
+
+
+#################
+#before new year
+nohup snakemake -p -j 12 --tibanna --use-conda \
+    --tibanna-config root_ebs_size=32 log_bucket=salk-tm-logs run_name=AH3M_primary_high_confidence_cds_salmon.v1\
+    --default-remote-prefix salk-tm-dev/cannabis/flcDNA/ \
+    --default-resources mem_mb=500000 disk_mb=5000000 \
+    --configfile configs/csat_AH3M.json \
+    --config \
+        reference=AH3M.concat.primary_high_confidence.cds.fasta \
+        outbase=quants/AH3M_primary_high_confidence_cds_salmon_keepdups.v1 > logs/AH3M_cds_salmon122824.log 2>&1 &
+
 ##############################################################
 #/data1/jkitony/Cannabis/AH3M_XY 
 #Overview
